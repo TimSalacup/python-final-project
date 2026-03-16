@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
 import platform
+import sqlite3
 
 # ---------------- FETCH TOYOTA DATA ----------------
 response = requests.get("https://vpic.nhtsa.dot.gov/api/vehicles/getmodelsformake/toyota?format=json")
@@ -36,10 +37,93 @@ root = tk.Tk()
 root.title("Toyota Dealership")
 root.geometry("1200x700")
 
+# ---------------- IN-MEMORY SQL DATABASE ----------------
+db_conn = sqlite3.connect(":memory:")
+db_cursor = db_conn.cursor()
+db_cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL
+    )
+""")
+db_conn.commit()
+
 #Tim: configures the GUI window’s visual settings
 #Cha: System_Font is for normal text, and Title_Font is for bigger, bold titles. We set the title of the window to “Toyota Dealership”,
 #Juliel: This code sets font styles for the app. It creates the main Tkinter window and sets its title to "Toyota Dealership." It also defines the window size and background color.
 #Barrion: Creates the main Tkinter window titled "Toyota Dealership", sets its size to 1200x700 pixels, and applies a light gray background. 
+
+# ---------------- LOGIN PAGE ----------------
+def login_page():
+    for widget in root.winfo_children():
+        widget.destroy()
+
+    root.configure(bg="white")
+
+    bg_img = Image.open("./assets/register_img.jpg").resize((1200, 700))
+    root.bg_photo = ImageTk.PhotoImage(bg_img)
+
+    bg_label = tk.Label(root, image=root.bg_photo)
+    bg_label.place(relwidth=1, relheight=1)
+
+    frame = tk.Frame(root, bg="black", padx=40, pady=30)
+    frame.place(relx=0.5, rely=0.5, anchor="center")
+
+    tk.Label(frame, text="Log In",
+             fg="white", bg="black",
+             font=TITLE_FONT).pack(pady=10)
+
+    tk.Label(frame, text="Name",
+             fg="white", bg="black",
+             font=SYSTEM_FONT).pack(anchor="w")
+    name_entry = tk.Entry(frame, font=SYSTEM_FONT, width=30)
+    name_entry.pack(pady=5)
+
+    tk.Label(frame, text="Email",
+             fg="white", bg="black",
+             font=SYSTEM_FONT).pack(anchor="w")
+    email_entry = tk.Entry(frame, font=SYSTEM_FONT, width=30)
+    email_entry.pack(pady=5)
+
+    tk.Label(frame, text="Password",
+             fg="white", bg="black",
+             font=SYSTEM_FONT).pack(anchor="w")
+    password_entry = tk.Entry(frame, show="*", font=SYSTEM_FONT, width=30)
+    password_entry.pack(pady=5)
+
+    def login():
+        name = name_entry.get().strip()
+        email = email_entry.get().strip()
+        password = password_entry.get().strip()
+
+        if not name or not email or not password:
+            messagebox.showerror("Error", "Enter name, email, and password")
+            return
+
+        db_cursor.execute(
+            "SELECT id FROM users WHERE name = ? AND email = ? AND password = ?",
+            (name, email, password)
+        )
+        user = db_cursor.fetchone()
+
+        if user is None:
+            messagebox.showerror("Not Registered", "Credentials not found. Please register first.")
+            return
+
+        inventory_page()
+
+    btn_frame = tk.Frame(frame, bg="black")
+    btn_frame.pack(pady=15)
+
+    tk.Button(btn_frame, text="Log In",
+              font=SYSTEM_FONT,
+              command=login).pack(side="left", padx=8)
+
+    tk.Button(btn_frame, text="Create Account",
+              font=SYSTEM_FONT,
+              command=register_page).pack(side="left", padx=8)
 
 # ---------------- REGISTER PAGE ----------------
 def register_page():
@@ -80,10 +164,26 @@ def register_page():
     password_entry.pack(pady=5)
 
     def register():
-        if not name_entry.get():
-            messagebox.showerror("Error", "Enter name")
+        name = name_entry.get().strip()
+        email = email_entry.get().strip()
+        password = password_entry.get().strip()
+
+        if not name or not email or not password:
+            messagebox.showerror("Error", "Enter name, email, and password")
             return
-        inventory_page()
+
+        try:
+            db_cursor.execute(
+                "INSERT INTO users(name, email, password) VALUES (?, ?, ?)",
+                (name, email, password)
+            )
+            db_conn.commit()
+        except sqlite3.IntegrityError:
+            messagebox.showerror("Error", "Email already registered. Please log in.")
+            return
+
+        messagebox.showinfo("Success", "Account created. Please log in.")
+        login_page()
 
     tk.Button(frame, text="Sign Up",
               font=SYSTEM_FONT,
@@ -326,6 +426,11 @@ def reviews_page(model_name):
 #Juliel: creates the reviews page and clears previous widgets. It displays four review cards with placeholder profile images, anonymous names, star ratings, and sample review text in a grid layout. It also adds a Back button that returns to the inventory page.
 #Barrion: Defines the reviews_page function, which clears the window and displays a grid of review cards with profile images, names, ratings, and comments, plus a button to return to the inventory.
 
+def on_close():
+    db_conn.close()
+    root.destroy()
+
 # ---------------- START APP ----------------
-register_page()
+root.protocol("WM_DELETE_WINDOW", on_close)
+login_page()
 root.mainloop()
