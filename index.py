@@ -4,6 +4,8 @@ from tkinter import messagebox
 from PIL import Image, ImageTk
 import platform
 import sqlite3
+import os
+import random
 
 # ---------------- FETCH TOYOTA DATA ----------------
 response = requests.get("https://vpic.nhtsa.dot.gov/api/vehicles/getmodelsformake/toyota?format=json")
@@ -28,9 +30,13 @@ SYSTEM_FONT = (BASE_FONT, 12)
 TITLE_FONT = (BASE_FONT, 24, "bold")
 
 # ---------------- COLORS ----------------
-DARK_BG = "#222222"
+DARK_BG = "#2E2E2E"
 TEXT_COLOR = "white"
 BUTTON_RED = "#d53c3c"
+CARD_BG = "#656565"
+CARD_RADIUS = 20
+CARD_PADDING = 16
+BUTTON_RADIUS = 20
 
 # ---------------- MAIN WINDOW ----------------
 root = tk.Tk()
@@ -49,6 +55,89 @@ db_cursor.execute("""
     )
 """)
 db_conn.commit()
+
+
+def create_rounded_rect(canvas, x1, y1, x2, y2, radius, **kwargs):
+    points = [
+        x1 + radius, y1,
+        x2 - radius, y1,
+        x2, y1,
+        x2, y1 + radius,
+        x2, y2 - radius,
+        x2, y2,
+        x2 - radius, y2,
+        x1 + radius, y2,
+        x1, y2,
+        x1, y2 - radius,
+        x1, y1 + radius,
+        x1, y1
+    ]
+    return canvas.create_polygon(points, smooth=True, splinesteps=36, **kwargs)
+
+
+def rounded_button(parent, text, command, width=170, height=42):
+    button_canvas = tk.Canvas(
+        parent,
+        width=width,
+        height=height,
+        bg=parent.cget("bg"),
+        highlightthickness=0,
+        bd=0
+    )
+    button_shape = create_rounded_rect(
+        button_canvas,
+        1,
+        1,
+        width - 1,
+        height - 1,
+        BUTTON_RADIUS,
+        fill=BUTTON_RED,
+        outline=BUTTON_RED
+    )
+    button_text = button_canvas.create_text(
+        width // 2,
+        height // 2,
+        text=text,
+        fill="white",
+        font=SYSTEM_FONT
+    )
+
+    def on_click(_event):
+        command()
+
+    button_canvas.bind("<Button-1>", on_click)
+    button_canvas.tag_bind(button_shape, "<Button-1>", on_click)
+    button_canvas.tag_bind(button_text, "<Button-1>", on_click)
+    button_canvas.configure(cursor="hand2")
+    return button_canvas
+
+
+def load_inventory_image_pool():
+    photo_dir = os.path.join(".", "assets", "car photos")
+    image_extensions = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+    photo_paths = []
+
+    if os.path.isdir(photo_dir):
+        for filename in os.listdir(photo_dir):
+            if filename.lower().endswith(image_extensions):
+                photo_paths.append(os.path.join(photo_dir, filename))
+
+    if not photo_paths:
+        photo_paths = ["./assets/inventory_placeholder.png"]
+
+    image_pool = []
+    for path in photo_paths:
+        try:
+            with Image.open(path) as img:
+                image_pool.append(ImageTk.PhotoImage(img.resize((250, 150))))
+        except OSError:
+            continue
+
+    if not image_pool:
+        with Image.open("./assets/inventory_placeholder.png") as img:
+            image_pool.append(ImageTk.PhotoImage(img.resize((250, 150))))
+
+    return image_pool
 
 #Tim: configures the GUI window’s visual settings
 #Cha: System_Font is for normal text, and Title_Font is for bigger, bold titles. We set the title of the window to “Toyota Dealership”,
@@ -231,45 +320,59 @@ def inventory_page():
 
     container.bind("<Configure>", update_scroll)
 
-    root.vehicle_photo = ImageTk.PhotoImage(
-        Image.open("./assets/inventory_placeholder.png").resize((250, 150))
-    )
+    root.inventory_image_pool = load_inventory_image_pool()
 
     row = 0
     col = 0
 
     for v in vehicles:
-        card = tk.Frame(container,
-                        bg=DARK_BG,
-                        highlightbackground="#444",
-                        highlightthickness=2)
+        card_canvas = tk.Canvas(
+            container,
+            width=330,
+            height=320,
+            bg=DARK_BG,
+            highlightthickness=0,
+            bd=0
+        )
+        card_canvas.grid(row=row, column=col, padx=28, pady=28, sticky="n")
 
-        card.grid(row=row, column=col, padx=40, pady=40, sticky="n")
+        create_rounded_rect(
+            card_canvas,
+            1,
+            1,
+            329,
+            319,
+            CARD_RADIUS,
+            fill=CARD_BG,
+            outline=CARD_BG
+        )
 
+        card = tk.Frame(card_canvas, bg=CARD_BG, padx=CARD_PADDING, pady=CARD_PADDING)
+        card_canvas.create_window(165, 160, window=card, width=292, height=282)
+
+        random_photo = random.choice(root.inventory_image_pool)
         tk.Label(card,
-                 image=root.vehicle_photo,
-                 bg=DARK_BG).pack(pady=10)
+                 image=random_photo,
+                 bg=CARD_BG).pack(pady=(0, 10))
 
         tk.Label(card,
                  text=v["Model_Name"],
                  fg=TEXT_COLOR,
-                 bg=DARK_BG,
+                 bg=CARD_BG,
                  font=(BASE_FONT, 14, "bold")).pack()
 
         tk.Label(card,
                  text=f"Model ID: {v['Model_ID']}",
                  fg=TEXT_COLOR,
-                 bg=DARK_BG,
+                 bg=CARD_BG,
                  font=SYSTEM_FONT).pack()
 
-        tk.Button(card,
-                  text="View More",
-                  bg=BUTTON_RED,
-                  fg="white",
-                  relief="flat",
-                  font=SYSTEM_FONT,
-                  command=lambda name=v["Model_Name"]:
-                  vehicle_details_page(name)).pack(pady=10)
+        rounded_button(
+            card,
+            "View More",
+            lambda name=v["Model_Name"]: vehicle_details_page(name),
+            width=145
+        ).pack(pady=(10, 0))
 
         col += 1
         if col == 3:
@@ -329,22 +432,35 @@ def vehicle_details_page(model_name):
              bg=DARK_BG,
              fg=TEXT_COLOR).pack()
 
-    tk.Button(root,
-              text="Reviews",
-              bg=BUTTON_RED,
-              fg="white",
-              relief="flat",
-              font=SYSTEM_FONT,
-              command=lambda: reviews_page(model_name)
-              ).pack(pady=10)
+    button_frame = tk.Frame(root, bg=DARK_BG)
+    button_frame.pack(pady=14)
 
-    tk.Button(root,
-              text="Back to Inventory",
-              bg=BUTTON_RED,
-              fg="white",
-              relief="flat",
-              font=SYSTEM_FONT,
-              command=inventory_page).pack()
+    rounded_button(
+        button_frame,
+        "Book now",
+        lambda: messagebox.showinfo("Book now", "Booking feature coming soon."),
+        width=185
+    ).pack(pady=5)
+
+    rounded_button(
+        button_frame,
+        "Reviews",
+        lambda: reviews_page(model_name),
+        width=185
+    ).pack(pady=5)
+
+    rounded_button(
+        button_frame,
+        "Back to Inventory",
+        inventory_page,
+        width=185
+    ).pack(pady=5)
+
+    tk.Label(root,
+             text="★★★★★",
+             fg="gold",
+             bg=DARK_BG,
+             font=(BASE_FONT, 20)).pack(pady=(8, 0))
 
 #Tim: Function for the vehicle details page. Displays rental rates, a 5-star rating, and the button to the reviews page.
 #Cha: This function creates a vehicle details page showing the model name, multiple images, rental prices, ratings, and buttons for reviews or going back to the inventory
@@ -376,7 +492,7 @@ def reviews_page(model_name):
 
     for i in range(4):
         card = tk.Frame(container,
-                        bg=DARK_BG,
+                        bg=CARD_BG,
                         highlightbackground="#444",
                         highlightthickness=2)
 
@@ -384,24 +500,24 @@ def reviews_page(model_name):
 
         tk.Label(card,
                  image=root.profile_photo,
-                 bg=DARK_BG).pack(pady=5)
+                 bg=CARD_BG).pack(pady=5)
 
         tk.Label(card,
                  text="Anonymous",
                  fg=TEXT_COLOR,
-                 bg=DARK_BG,
+                 bg=CARD_BG,
                  font=(BASE_FONT, 14, "bold")).pack()
 
         tk.Label(card,
                  text="★★★★★",
                  fg="gold",
-                 bg=DARK_BG,
+                 bg=CARD_BG,
                  font=(BASE_FONT, 16)).pack()
 
         tk.Label(card,
                  text="Excellent vehicle and smooth experience!",
                  fg=TEXT_COLOR,
-                 bg=DARK_BG,
+                 bg=CARD_BG,
                  font=SYSTEM_FONT).pack()
 
         col += 1
