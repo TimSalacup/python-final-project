@@ -41,28 +41,41 @@ root = tk.Tk()
 root.title("Toyota Dealership")
 root.geometry("1200x700")
 
-# ---------------- IN-MEMORY SQL DATABASE ----------------
+# ---------------- SQL SETUP ----------------
+def load_sql_queries(sql_path):
+    queries = {}
+    current_query_name = None
+    current_query_lines = []
+
+    with open(sql_path, "r", encoding="utf-8") as sql_file:
+        for raw_line in sql_file:
+            line = raw_line.rstrip("\n")
+            stripped = line.strip()
+
+            if stripped.startswith("-- name:"):
+                if current_query_name is not None:
+                    query_text = "\n".join(current_query_lines).strip()
+                    if query_text:
+                        queries[current_query_name] = query_text
+                current_query_name = stripped.split(":", 1)[1].strip()
+                current_query_lines = []
+            elif current_query_name is not None:
+                current_query_lines.append(line)
+
+    if current_query_name is not None:
+        query_text = "\n".join(current_query_lines).strip()
+        if query_text:
+            queries[current_query_name] = query_text
+
+    return queries
+
+
+SQL_QUERIES = load_sql_queries("./index.sql")
+
 db_conn = sqlite3.connect(":memory:")
 db_cursor = db_conn.cursor()
-db_cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL
-    )
-""")
-db_cursor.execute("""
-    CREATE TABLE IF NOT EXISTS bookings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        car_name TEXT NOT NULL,
-        booking_date TEXT NOT NULL,
-        hours INTEGER NOT NULL,
-        price INTEGER NOT NULL,
-        FOREIGN KEY(user_id) REFERENCES users(id)
-    )
-""")
+db_cursor.execute(SQL_QUERIES["create_users_table"])
+db_cursor.execute(SQL_QUERIES["create_bookings_table"])
 db_conn.commit()
 current_user = None
 
@@ -120,6 +133,37 @@ def rounded_button(parent, text, command, width=170, height=42):
     button_canvas.tag_bind(button_text, "<Button-1>", on_click)
     button_canvas.configure(cursor="hand2")
     return button_canvas
+
+
+def create_rounded_card(parent, width, height, bg_color=CARD_BG, radius=CARD_RADIUS, content_padding=20):
+    card_canvas = tk.Canvas(
+        parent,
+        width=width,
+        height=height,
+        bg=parent.cget("bg"),
+        highlightthickness=0,
+        bd=0
+    )
+    create_rounded_rect(
+        card_canvas,
+        1,
+        1,
+        width - 1,
+        height - 1,
+        radius,
+        fill=bg_color,
+        outline=bg_color
+    )
+
+    card_frame = tk.Frame(card_canvas, bg=bg_color)
+    card_canvas.create_window(
+        width // 2,
+        height // 2,
+        window=card_frame,
+        width=width - (content_padding * 2),
+        height=height - (content_padding * 2)
+    )
+    return card_canvas, card_frame
 
 
 def get_car_photo_paths():
@@ -247,7 +291,7 @@ def login_page():
             return
 
         db_cursor.execute(
-            "SELECT id, name, email FROM users WHERE name = ? AND email = ? AND password = ?",
+            SQL_QUERIES["select_user_by_credentials"],
             (name, email, password)
         )
         user = db_cursor.fetchone()
@@ -319,7 +363,7 @@ def register_page():
 
         try:
             db_cursor.execute(
-                "INSERT INTO users(name, email, password) VALUES (?, ?, ?)",
+                SQL_QUERIES["insert_user"],
                 (name, email, password)
             )
             db_conn.commit()
@@ -746,7 +790,7 @@ def book_now_page(model_name):
         computed_price = math.ceil(hours / 12) * 1000
 
         db_cursor.execute(
-            "INSERT INTO bookings(user_id, car_name, booking_date, hours, price) VALUES (?, ?, ?, ?, ?)",
+            SQL_QUERIES["insert_booking"],
             (current_user["id"], model_name, selected_date, hours, computed_price)
         )
         db_conn.commit()
@@ -783,52 +827,117 @@ def user_profile_page():
              text="User Profile",
              font=TITLE_FONT,
              bg=DARK_BG,
-             fg=TEXT_COLOR).pack(pady=(28, 8))
+             fg=TEXT_COLOR).pack(pady=(22, 8))
 
-    card = tk.Frame(root, bg=CARD_BG, padx=32, pady=28)
-    card.place(relx=0.5, rely=0.48, anchor="center")
+    content_frame = tk.Frame(root, bg=DARK_BG)
+    content_frame.place(relx=0.5, rely=0.5, anchor="center")
 
-    tk.Label(card,
-             text=current_user["name"],
-             font=(BASE_FONT, 18, "bold"),
+    top_box_canvas, top_box = create_rounded_card(
+        content_frame,
+        width=520,
+        height=250,
+        bg_color=CARD_BG,
+        radius=CARD_RADIUS,
+        content_padding=20
+    )
+    top_box_canvas.pack(pady=(0, 18))
+
+    try:
+        with Image.open("./assets/anonymous_placeholder.jpg") as profile_image:
+            root.user_profile_photo = ImageTk.PhotoImage(profile_image.resize((95, 95)))
+        tk.Label(top_box, image=root.user_profile_photo, bg=CARD_BG).pack(pady=(0, 10))
+    except OSError:
+        tk.Label(top_box,
+                 text="[No profile image]",
+                 fg=TEXT_COLOR,
+                 bg=CARD_BG,
+                 font=SYSTEM_FONT).pack(pady=(0, 10))
+
+    tk.Label(top_box,
+             text=f"User ID: {current_user['id']}",
+             font=(BASE_FONT, 16, "bold"),
              bg=CARD_BG,
-             fg=TEXT_COLOR).pack(pady=(0, 6))
+             fg=TEXT_COLOR).pack(pady=(0, 8))
 
-    tk.Label(card,
-             text=current_user["email"],
+    tk.Label(top_box,
+             text=f"{current_user['name']}  |  {current_user['email']}",
              font=SYSTEM_FONT,
-             bg=CARD_BG,
-             fg=TEXT_COLOR).pack(pady=(0, 14))
-
-    tk.Label(card,
-             text="Car Reservations",
-             font=(BASE_FONT, 14, "bold"),
              bg=CARD_BG,
              fg=TEXT_COLOR).pack()
 
-    db_cursor.execute(
-        "SELECT car_name, booking_date, hours, price FROM bookings WHERE user_id = ? ORDER BY id DESC",
-        (current_user["id"],)
+    bottom_box_canvas, bottom_box = create_rounded_card(
+        content_frame,
+        width=860,
+        height=340,
+        bg_color=CARD_BG,
+        radius=CARD_RADIUS,
+        content_padding=20
     )
+    bottom_box_canvas.pack()
+
+    left_panel = tk.Frame(bottom_box, bg=CARD_BG)
+    left_panel.pack(side="left", fill="both", expand=True, padx=(0, 14))
+
+    divider = tk.Frame(bottom_box, bg=DARK_BG, width=2)
+    divider.pack(side="left", fill="y", padx=6)
+
+    right_panel = tk.Frame(bottom_box, bg=CARD_BG)
+    right_panel.pack(side="left", fill="y", padx=(14, 0))
+
+    tk.Label(left_panel,
+             text="Your Car Bookings",
+             font=(BASE_FONT, 14, "bold"),
+             bg=CARD_BG,
+             fg=TEXT_COLOR).pack(anchor="w", pady=(0, 10))
+
+    tk.Label(right_panel,
+             text="Delete",
+             font=(BASE_FONT, 14, "bold"),
+             bg=CARD_BG,
+             fg=TEXT_COLOR).pack(anchor="center", pady=(0, 10))
+
+    db_cursor.execute(SQL_QUERIES["select_bookings_for_user"], (current_user["id"],))
     reservations = db_cursor.fetchall()
 
-    if not reservations:
-        reservation_text = "No booked car yet."
-    else:
-        reservation_lines = []
-        for car_name, booking_date, hours, price in reservations:
-            reservation_lines.append(
-                f"{car_name}\nDate: {booking_date}\nHours: {hours}\nPrice: ₱{price:,}"
-            )
-        reservation_text = "\n\n".join(reservation_lines)
+    def delete_booking(booking_id):
+        db_cursor.execute(SQL_QUERIES["delete_booking_for_user"], (booking_id, current_user["id"]))
+        db_conn.commit()
+        user_profile_page()
 
-    tk.Label(card,
-             text=reservation_text,
-             font=SYSTEM_FONT,
-             bg=CARD_BG,
-             fg=TEXT_COLOR,
-             justify="center",
-             wraplength=520).pack(pady=(12, 4))
+    if not reservations:
+        tk.Label(left_panel,
+                 text="No booked car yet.",
+                 font=SYSTEM_FONT,
+                 bg=CARD_BG,
+                 fg=TEXT_COLOR,
+                 justify="left").pack(anchor="w", pady=(8, 0))
+
+        tk.Label(right_panel,
+                 text="No actions",
+                 font=SYSTEM_FONT,
+                 bg=CARD_BG,
+                 fg=TEXT_COLOR).pack(anchor="center", pady=(8, 0))
+    else:
+        for booking_id, car_name, booking_date, hours, price in reservations:
+            booking_line = (
+                f"{car_name}\n"
+                f"Date: {booking_date} | Hours: {hours} | Price: ₱{price:,}"
+            )
+            tk.Label(left_panel,
+                     text=booking_line,
+                     font=SYSTEM_FONT,
+                     bg=CARD_BG,
+                     fg=TEXT_COLOR,
+                     justify="left",
+                     anchor="w").pack(anchor="w", pady=6)
+
+            rounded_button(
+                right_panel,
+                "Delete",
+                lambda bid=booking_id: delete_booking(bid),
+                width=110,
+                height=34
+            ).pack(pady=12)
 
     rounded_button(
         root,
