@@ -16,11 +16,6 @@ data = response.json()
 results = data["Results"]
 vehicles = [{"Model_ID": v["Model_ID"], "Model_Name": v["Model_Name"]} for v in results]
 
-#Tim: gets data from an API link and stores it in a variable called results
-#Cha: It collects the data, converts it into a format Python understands, and saves only the model ID and model name in a list for easier use in the app.
-#Juliel: .This code fetches Toyota vehicle model data from an online API using requests. It converts the response to JSON and extracts the results. Then, it creates a list containing each model’s ID and name.
-#Barrion: Retrieves Toyota models from the API, parses the JSON response, and creates a list of dictionaries with each model's ID and name.
-
 # ---------------- SYSTEM FONT ----------------
 if platform.system() == "Windows":
     BASE_FONT = "Segoe UI"
@@ -203,11 +198,6 @@ def load_random_detail_images(count=3):
 
     return detail_images
 
-#Tim: configures the GUI window’s visual settings
-#Cha: System_Font is for normal text, and Title_Font is for bigger, bold titles. We set the title of the window to “Toyota Dealership”,
-#Juliel: This code sets font styles for the app. It creates the main Tkinter window and sets its title to "Toyota Dealership." It also defines the window size and background color.
-#Barrion: Creates the main Tkinter window titled "Toyota Dealership", sets its size to 1200x700 pixels, and applies a light gray background. 
-
 # ---------------- LOGIN PAGE ----------------
 def login_page():
     for widget in root.winfo_children():
@@ -343,13 +333,7 @@ def register_page():
     tk.Button(frame, text="Sign Up",
               font=SYSTEM_FONT,
               command=register).pack(pady=15)
-    
-#Tim: Function for the Register page. Sets the background image and the textboxes for the register form
-#Cha: This section creates the Register Page. It clears the screen, shows a background image, and adds a frame with fields for Name, Email, and Password.
-#Juliel: This function creates a registration page with a background image and input fields for name, email, and password. It also adds a Sign Up button. When clicked, it checks if the name is entered before moving to the next page.
-#Barrion: Defines the register_page function, which clears the window, sets a background image, creates a centered black frame with entry fields for name, email, and password, and adds a "Sign Up" button that validates input before navigating to the inventory page. 
-
-
+ 
 # ---------------- INVENTORY PAGE ----------------
 def inventory_page():
     for widget in root.winfo_children():
@@ -463,11 +447,6 @@ def inventory_page():
         width=120,
         height=40
     ).place(relx=0.98, rely=0.19, anchor="ne")
-
-#Tim: Function for the inventory / vehicles page. It clears the current window and displays available toyota models.
-#Cha: It creates a clean inventory page where each vehicle is displayed as a card with its image and detail
-#Juliel: This function creates the inventory page and clears previous widgets. It displays vehicle cards with images, names, and model IDs in a grid layout. Each card has a “View More” button that opens details for the selected vehicle.
-#Barrion: Defines the inventory_page function, which clears the window and displays a grid of up to 9 vehicle cards with images, model details, and a "View More" button for each. 
 
 # ---------------- VEHICLE DETAILS PAGE ----------------
 def vehicle_details_page(model_name):
@@ -864,11 +843,6 @@ def logout_to_login():
     current_user = None
     login_page()
 
-#Tim: Function for the vehicle details page. Displays rental rates, a 5-star rating, and the button to the reviews page.
-#Cha: This function creates a vehicle details page showing the model name, multiple images, rental prices, ratings, and buttons for reviews or going back to the inventory
-#Juliel: This function displays the vehicle details page and clears previous widgets. It shows the selected vehicle’s name, placeholder images, rental prices, and a star rating. It also adds buttons to view reviews or go back to the inventory page.
-#Barrion: Defines the vehicle_details_page function, which clears the window and displays details for a selected vehicle including its name, images, rental prices, rating, and navigation buttons for reviews or returning to inventory.
-
 # ---------------- REVIEWS PAGE ----------------
 def reviews_page(model_name):
     for widget in root.winfo_children():
@@ -938,11 +912,6 @@ def reviews_page(model_name):
               font=SYSTEM_FONT,
               command=lambda: vehicle_details_page(model_name)
               ).pack(pady=10)
-
-#Tim: Function for the reviews page. It displays 4 identical review comments.
-#Cha: This function is for reviews page. It shows user boxes with profile pictures, names, star ratings, and comments. Overall, this function organizes user reviews in a clean layout that is interactive and visually consistent.
-#Juliel: creates the reviews page and clears previous widgets. It displays four review cards with placeholder profile images, anonymous names, star ratings, and sample review text in a grid layout. It also adds a Back button that returns to the inventory page.
-#Barrion: Defines the reviews_page function, which clears the window and displays a grid of review cards with profile images, names, ratings, and comments, plus a button to return to the inventory.
 
 def on_close():
     db_conn.close()

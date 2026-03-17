@@ -3,5 +3,8 @@
 }
 
 h1 {
-    color:rgb(213, 60, 60)
+    color:rgb(213, 60, 60);
+    display: flex;
+    flex-direction: column;
 }
+
